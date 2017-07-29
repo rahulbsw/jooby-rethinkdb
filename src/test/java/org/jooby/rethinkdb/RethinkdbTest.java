@@ -237,6 +237,8 @@ import static org.junit.Assert.assertEquals;
 class RethinkdbTest {
     private Config $rethinkdb = ConfigFactory.parseResources(getClass(), "rethinkdb.conf");
 
+    public RethinkdbTest(){}
+
     @SuppressWarnings("unchecked")
     MockUnit.Block rethinkdb = unit -> {
         AnnotatedBindingBuilder<Connection.Builder> mcuABB = unit.mock( AnnotatedBindingBuilder.class );
@@ -248,7 +250,7 @@ class RethinkdbTest {
                 .build(isA(Connection.Builder.class));
 
         Db db = unit.mock(Db.class);
-        expect(RethinkDB.r.db("mydb")).andReturn(db);
+        //expect(connection.db().get()).andReturn("mydb");
 
         unit.registerMock(Connection.class, connection);
 
@@ -281,7 +283,7 @@ class RethinkdbTest {
                     Config config = unit.get(Config.class);
                     expect(config.getConfig("rethinkdb")).andReturn($rethinkdb.getConfig("rethinkdb"));
                     expect(config.hasPath("rethinkdb.db")).andReturn(false);
-                    expect(config.getString("db")).andReturn("rethinkdb://127.0.0.1/mydb");
+                    expect(config.getString("db")).andReturn("db");
                 })
                 .expect(serviceKey(new Env.ServiceKey()))
                 .expect(rethinkdb)
@@ -304,7 +306,7 @@ class RethinkdbTest {
                     Config config = unit.get(Config.class);
                     expect(config.getConfig("rethinkdb")).andReturn($rethinkdb.getConfig("rethinkdb"));
                     expect(config.hasPath("rethinkdb.db")).andReturn(false);
-                    expect(config.getString("db")).andReturn("rethinkdb://127.0.0.1");
+                    expect(config.getString("db")).andReturn("db");
                 })
                 .expect(rethinkdb)
                 .run(unit -> {
@@ -362,7 +364,7 @@ class RethinkdbTest {
                 .run(unit -> {
                     new Rethinkdb()
                             .options((options, config) -> {
-                                //options.(3000);
+                                options.db("mydb");
                             })
                             .configure(unit.get(Env.class), unit.get(Config.class), unit.get(Binder.class));
                 });
