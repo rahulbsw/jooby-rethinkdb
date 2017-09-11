@@ -213,7 +213,6 @@ import com.google.inject.Binder;
 import com.google.inject.Key;
 import com.google.inject.binder.AnnotatedBindingBuilder;
 import com.google.inject.name.Names;
-import com.rethinkdb.RethinkDB;
 import com.rethinkdb.gen.ast.Db;
 import com.rethinkdb.net.Connection;
 import com.typesafe.config.Config;
@@ -241,9 +240,9 @@ class RethinkdbTest {
 
     @SuppressWarnings("unchecked")
     MockUnit.Block rethinkdb = unit -> {
-        AnnotatedBindingBuilder<Connection.Builder> mcuABB = unit.mock( AnnotatedBindingBuilder.class );
-        mcuABB.toInstance(isA(Connection.Builder.class));
-        mcuABB.toInstance(isA(Connection.Builder.class));
+        AnnotatedBindingBuilder<RethinkdbConnection> rethinkdbConnABB = unit.mock( AnnotatedBindingBuilder.class );
+        rethinkdbConnABB.toInstance(isA(RethinkdbConnection.class));
+        rethinkdbConnABB.toInstance(isA(RethinkdbConnection.class));
 
         Connection connection = unit.constructor(Connection.class)
                 .args(Connection.Builder.class)
@@ -254,23 +253,18 @@ class RethinkdbTest {
 
         unit.registerMock(Connection.class, connection);
 
-        AnnotatedBindingBuilder<Connection> mcABB = unit.mock(AnnotatedBindingBuilder.class);
-        mcABB.toInstance(connection);
-        mcABB.toInstance(connection);
+        AnnotatedBindingBuilder<Connection> connABB = unit.mock(AnnotatedBindingBuilder.class);
+        connABB.toInstance(connection);
+        connABB.toInstance(connection);
 
-        AnnotatedBindingBuilder<Db> dbABB = unit.mock(AnnotatedBindingBuilder.class);
-        dbABB.toInstance(db);
-        dbABB.toInstance(db);
 
         Binder binder = unit.get(Binder.class);
-        expect(binder.bind(Key.get(Connection.Builder.class))).andReturn(mcuABB);
-        expect(binder.bind(Key.get(Connection.Builder.class, Names.named("mydb")))).andReturn(mcuABB);
+        expect(binder.bind(Key.get(RethinkdbConnection.class))).andReturn(rethinkdbConnABB);
+        expect(binder.bind(Key.get(RethinkdbConnection.class, Names.named("db")))).andReturn(rethinkdbConnABB);
 
-        expect(binder.bind(Key.get(Connection.class))).andReturn(mcABB);
-        expect(binder.bind(Key.get(Connection.class, Names.named("mydb")))).andReturn(mcABB);
+        expect(binder.bind(Key.get(Connection.class))).andReturn(connABB);
+        expect(binder.bind(Key.get(Connection.class, Names.named("db")))).andReturn(connABB);
 
-        expect(binder.bind(Key.get(Db.class))).andReturn(dbABB);
-        expect(binder.bind(Key.get(Db.class, Names.named("mydb")))).andReturn(dbABB);
 
         Env env = unit.get(Env.class);
         expect(env.onStop(unit.capture(Try.CheckedRunnable.class))).andReturn(env);
@@ -282,37 +276,33 @@ class RethinkdbTest {
                 .expect(unit -> {
                     Config config = unit.get(Config.class);
                     expect(config.getConfig("rethinkdb")).andReturn($rethinkdb.getConfig("rethinkdb"));
-                    expect(config.hasPath("rethinkdb.db")).andReturn(false);
-                    expect(config.getString("db")).andReturn("db");
+                    expect(config.hasPath("rethinkdb.db")).andReturn(true);
+                    expect(config.getString("rethinkdb.db")).andReturn("db");
+                    Rethinkdb rethinkdb = new Rethinkdb();
+                    rethinkdb.configure(unit.get(Env.class), unit.get(Config.class), unit.get(Binder.class));
                 })
                 .expect(serviceKey(new Env.ServiceKey()))
                 .expect(rethinkdb)
                 .expect(unit-> {
-                    Connection client = unit.get(Connection.class);
+                    RethinkdbConnection client = unit.get(RethinkdbConnection.class);
                     client.close();
                 })
-                .run(unit -> {
-                    org.jooby.rethinkdb.Rethinkdb rethinkdb = new org.jooby.rethinkdb.Rethinkdb();
-                    rethinkdb.configure(unit.get(Env.class), unit.get(Config.class), unit.get(Binder.class));
-                }, unit -> {
-                    unit.captured(Try.CheckedRunnable.class).iterator().next().run();
-                });
+                ;
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void shouldFaileWhenDbIsMissing() throws Exception {
+    @Test
+    public void shouldHaveDefaultDB() throws Exception {
         new MockUnit(Env.class, Config.class, Binder.class)
                 .expect(unit -> {
                     Config config = unit.get(Config.class);
                     expect(config.getConfig("rethinkdb")).andReturn($rethinkdb.getConfig("rethinkdb"));
-                    expect(config.hasPath("rethinkdb.db")).andReturn(false);
-                    expect(config.getString("db")).andReturn("db");
-                })
-                .expect(rethinkdb)
-                .run(unit -> {
+                    expect(config.hasPath("rethinkdb.db")).andReturn(true);
+                    expect(config.getString("rethinkdb.db")).andReturn("db");
                     Rethinkdb rethinkdb = new Rethinkdb();
                     rethinkdb.configure(unit.get(Env.class), unit.get(Config.class), unit.get(Binder.class));
-                });
+
+                })
+                .expect(rethinkdb);
     }
 
     @Test
@@ -327,19 +317,18 @@ class RethinkdbTest {
                     expect(config.getConfig("rethinkdb.db")).andReturn(ConfigFactory.empty()
                             .withValue("rethinkdb.db.hostname", ConfigValueFactory.fromAnyRef("localhost"))
                             .withValue("rethinkdb.db.port", ConfigValueFactory.fromAnyRef(28015)));
-                    expect(config.getString("db")).andReturn("db");
-                })
-                .expect(serviceKey(new Env.ServiceKey()))
-                .expect(rethinkdb)
-                .run(unit -> {
+                    expect(config.getString("rethinkdb.db")).andReturn("db");
                     new Rethinkdb()
-                            .options((Connection.Builder options, Config config) -> {
+                            .options((Connection.Builder options, Config conf) -> {
                                 Connection connection=options.connect();
                                 assertEquals("localhost", connection.hostname);
                                 connection.close();
                             })
                             .configure(unit.get(Env.class), unit.get(Config.class), unit.get(Binder.class));
-                });
+
+                })
+                .expect(serviceKey(new Env.ServiceKey()))
+                .expect(rethinkdb);
     }
 
     @Test
@@ -356,18 +345,18 @@ class RethinkdbTest {
                 .expect(unit -> {
                     Config config = unit.get(Config.class);
                     expect(config.getConfig("rethinkdb")).andReturn($rethinkdb.getConfig("rethinkdb"));
-                    expect(config.hasPath("rethinkdb.db")).andReturn(false);
-                    expect(config.getString("db")).andReturn("db");
+                    expect(config.hasPath("rethinkdb.db")).andReturn(true);
+                    expect(config.getString("rethinkdb.db")).andReturn("db");
+                    new Rethinkdb()
+                            .options((options, conf) -> {
+                                options.db("db");
+                            })
+                            .configure(unit.get(Env.class), unit.get(Config.class), unit.get(Binder.class));
+
                 })
                 .expect(serviceKey(new Env.ServiceKey()))
                 .expect(rethinkdb)
-                .run(unit -> {
-                    new Rethinkdb()
-                            .options((options, config) -> {
-                                options.db("mydb");
-                            })
-                            .configure(unit.get(Env.class), unit.get(Config.class), unit.get(Binder.class));
-                });
+                ;
     }
 
     private MockUnit.Block serviceKey(final Env.ServiceKey serviceKey) {

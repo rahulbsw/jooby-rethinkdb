@@ -206,6 +206,7 @@ package org.jooby.rethinkdb;
 
 import com.google.inject.Binder;
 import com.rethinkdb.RethinkDB;
+import com.rethinkdb.gen.ast.Db;
 import com.rethinkdb.net.Connection;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
@@ -245,7 +246,7 @@ public class Rethinkdb implements Jooby.Module  {
     }
 
     protected void configure(final Env env, final Config config, final Binder binder,
-                             final BiConsumer<RethinkDB, Connection> callback) throws FileNotFoundException {
+                             final BiConsumer<RethinkDB, RethinkdbConnection> callback) throws FileNotFoundException {
         Connection.Builder connectionBuilder = options(rethinkdb(config));
 
         if (this.options != null) {
@@ -253,16 +254,21 @@ public class Rethinkdb implements Jooby.Module  {
         }
 
         Connection connection=connectionBuilder.connect();
-        String database=connection.db().get();
+        RethinkdbConnection rethinkdbConnection=new RethinkdbConnection(connection);
 
 
         Env.ServiceKey serviceKey = env.serviceKey();
-        serviceKey.generate(RethinkDB.class, database, k -> binder.bind(k).toInstance(RethinkDB.r));
-        serviceKey.generate(Connection.class, database, k -> binder.bind(k).toInstance(connection));
+        serviceKey.generate(RethinkDB.class, db, k -> binder.bind(k).toInstance(RethinkDB.r));
+        serviceKey.generate(RethinkdbConnection.class, db, k -> binder.bind(k).toInstance(rethinkdbConnection));
 
-        env.onStop(()->connection.close());
+        env.onStop(()->rethinkdbConnection.close());
 
-        callback.accept(RethinkDB.r, connection);
+
+        Db dbObject = RethinkDB.r.db(connection.db());
+        serviceKey.generate(Db.class, db,
+                k -> binder.bind(k).toInstance(dbObject));
+
+        callback.accept(RethinkDB.r, rethinkdbConnection);
     }
 
 
