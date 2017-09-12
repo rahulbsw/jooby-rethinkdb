@@ -239,7 +239,7 @@ public class RethinkSessionStore implements Session.Store{
     private static final String SESSION_IDX = "_sessionIdx_";
 
     /** The logging system. */
-    private final Logger log = LoggerFactory.getLogger(getClass());
+    private final Logger log = LoggerFactory.getLogger(RethinkSessionStore.class);
 
 
     private final AtomicBoolean ttlSync = new AtomicBoolean(false);
@@ -248,6 +248,7 @@ public class RethinkSessionStore implements Session.Store{
     private final long timeout;
     private Connection connection=null;
     private Table table=null;
+
 
     public RethinkSessionStore(final String dbname, final String tablename,final String hostname,final int port,
                              final long timeoutInSeconds) {
@@ -270,8 +271,7 @@ public class RethinkSessionStore implements Session.Store{
         this.table=r.db(db).table(table);
     }
 
-    @Inject
-    public RethinkSessionStore(final @Named("rethinkdb.session.db") String db,
+    public RethinkSessionStore(final @Named("rethinkdb.session.dbname") String db,
                                final @Named("rethinkdb.session.table") String tablename,
                                final @Named("rethinkdb.session.hostname") String hostname,
                                final @Named("rethinkdb.session.port") int port,
@@ -280,7 +280,7 @@ public class RethinkSessionStore implements Session.Store{
     }
 
     @Inject
-    public RethinkSessionStore(final @Named("rethinkdb.session.db") String db,
+    public RethinkSessionStore(final @Named("rethinkdb.session.dbname") String db,
                                final @Named("rethinkdb.session.table") String tablename,
                                final @Named("rethinkdb.session.hostname") String hostname,
                                final @Named("session.timeout") String timeout) {

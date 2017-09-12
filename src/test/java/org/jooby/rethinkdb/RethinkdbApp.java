@@ -206,21 +206,33 @@ package org.jooby.rethinkdb;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.rethinkdb.RethinkDB;
+import com.rethinkdb.gen.ast.Db;
+import com.rethinkdb.gen.ast.Table;
+import com.rethinkdb.model.MapObject;
 import org.jooby.Jooby;
 import org.jooby.Session;
 
 import com.typesafe.config.ConfigFactory;
 import com.typesafe.config.ConfigValueFactory;
 
+import static com.rethinkdb.RethinkDB.r;
+
 public class RethinkdbApp extends Jooby {
 
     {
         use(ConfigFactory.empty()
-                .withValue("rethinkdb.session.db", ConfigValueFactory.fromAnyRef("rethinkdbapp"))
+                .withValue("rethinkdb.session.dbname", ConfigValueFactory.fromAnyRef("rethinkdbapp"))
                 .withValue("rethinkdb.session.table", ConfigValueFactory.fromAnyRef("session"))
                 .withValue("rethinkdb.session.hostname", ConfigValueFactory.fromAnyRef("localhost"))
                 .withValue("rethinkdb.session.port", ConfigValueFactory.fromAnyRef(28015))
                 .withValue("session.timeout", ConfigValueFactory.fromAnyRef("2m")));
+
+        use(ConfigFactory.empty()
+                .withValue("rethinkdb.db.dbname", ConfigValueFactory.fromAnyRef("rethinkdbapp"))
+                .withValue("rethinkdb.db.hostname", ConfigValueFactory.fromAnyRef("localhost"))
+                .withValue("rethinkdb.db.port", ConfigValueFactory.fromAnyRef(28015)));
+
 
         use(new org.jooby.rethinkdb.Rethinkdb());
 
@@ -232,9 +244,23 @@ public class RethinkdbApp extends Jooby {
                 Session newSession = req.session();
                 int next = newSession.get("inc").intValue(inc.getAndIncrement());
                 newSession.set("inc", next);
+
+
                 return newSession;
             });
+            RethinkdbConnection conn=require(RethinkdbConnection.class);
+            Db db=require(Db.class);
+            Table table=conn.createTable(conn.getDefaultDbName(),"data");
+            MapObject doc=r.hashMap()
+                    .with("id", r.uuid())
+                    .with("accessedAt", session.accessedAt())
+                    .with("createdAt", session.createdAt())
+                    .with("savedAt", session.savedAt());
+            conn.run(table.insert(doc));
+
+
             return session.get("inc");
+
         });
 
 

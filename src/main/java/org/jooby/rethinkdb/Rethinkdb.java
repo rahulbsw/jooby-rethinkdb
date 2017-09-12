@@ -242,11 +242,12 @@ public class Rethinkdb implements Jooby.Module  {
     }
 
     public void configure(Env env, Config config, Binder binder) throws Throwable {
-
+        configure(env, config, binder, (connection,rethinkdbConnection) -> {
+        });
     }
 
     protected void configure(final Env env, final Config config, final Binder binder,
-                             final BiConsumer<RethinkDB, RethinkdbConnection> callback) throws FileNotFoundException {
+                             final BiConsumer<Connection, RethinkdbConnection> callback) throws FileNotFoundException {
         Connection.Builder connectionBuilder = options(rethinkdb(config));
 
         if (this.options != null) {
@@ -258,17 +259,17 @@ public class Rethinkdb implements Jooby.Module  {
 
 
         Env.ServiceKey serviceKey = env.serviceKey();
-        serviceKey.generate(RethinkDB.class, db, k -> binder.bind(k).toInstance(RethinkDB.r));
+        serviceKey.generate(Connection.class, db, k -> binder.bind(k).toInstance(connection));
         serviceKey.generate(RethinkdbConnection.class, db, k -> binder.bind(k).toInstance(rethinkdbConnection));
 
         env.onStop(()->rethinkdbConnection.close());
 
 
-        Db dbObject = RethinkDB.r.db(connection.db());
+        Db dbObject = RethinkDB.r.db(connection.db().get());
         serviceKey.generate(Db.class, db,
                 k -> binder.bind(k).toInstance(dbObject));
 
-        callback.accept(RethinkDB.r, rethinkdbConnection);
+        callback.accept(connection, rethinkdbConnection);
     }
 
 
@@ -304,17 +305,17 @@ public class Rethinkdb implements Jooby.Module  {
     private Connection.Builder options(final Config config) throws FileNotFoundException {
 
         Connection.Builder builder=RethinkDB.r.connection()
-          .db(isNull(config.getString("db"))?config.getString("db"):"test")
-          .hostname(isNull(config.getString("hostname"))?config.getString("hostname"):"localhost")
-          .port(isNull(config.getInt("port"))?config.getInt("port"):28015);
+          .db(!isNull(config.getString("dbname"))?config.getString("dbname"):"test")
+          .hostname(!isNull(config.getString("hostname"))?config.getString("hostname"):"localhost")
+          .port(!isNull(config.getInt("port"))?config.getInt("port"):28015);
 
-        if(!isNull(config.getDuration("timeout")))
+        if(config.hasPath("timeout") && !isNull(config.getDuration("timeout")))
             builder.timeout((int) config.getDuration("timeout", TimeUnit.SECONDS));
-        if(!isNull(config.getString("user")))
+        if(config.hasPath("user") && !isNull(config.getString("user")))
             builder.user(config.getString("user"),config.getString("password"));
-        if(!isNull(config.getString("authKey")))
+        if(config.hasPath("authKey") && !isNull(config.getString("authKey")))
             builder.authKey(config.getString("authKey"));
-        if(!isNull(config.getString("certFile")))
+        if(config.hasPath("certFile") && !isNull(config.getString("certFile")))
             builder.certFile(new FileInputStream(config.getString("certFile")));
 
         return builder;
