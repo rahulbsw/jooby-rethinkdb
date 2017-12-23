@@ -1,3 +1,4 @@
+![Master Branch](https://travis-ci.org/rahulbsw/jooby-rethinkdb.svg?branch=master)
 
 # &infin; What is Jooby (do more, more easily)
 
